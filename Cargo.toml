@@ -1,0 +1,12 @@
+[package]
+name = "mpsse"
+version = "0.1.0"
+authors = ["ryochack <ryochack@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+bindgen = "0.49"
+
