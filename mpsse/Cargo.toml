@@ -1,0 +1,10 @@
+[package]
+name = "mpsse"
+version = "0.1.0"
+authors = ["ryochack <ryochack@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+mpsse-sys = { path = "../mpsse-sys" }
+libc = "0.2.51"
+
