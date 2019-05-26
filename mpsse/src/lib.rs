@@ -1,3 +1,4 @@
+//! Wrappers for libmpsse for FTDI's FT2232 familly of USB chips.
 #![allow(dead_code)]
 
 use libc;
@@ -11,6 +12,7 @@ const MPSSE_OK: i32 = mpsse_sys::MPSSE_OK as i32;
 const MPSSE_FAIL: i32 = mpsse_sys::MPSSE_FAIL as i32;
 
 /// Enumeration of MPSSE modes.
+#[derive(Clone, Copy)]
 pub enum Mode {
     SPI0 = mpsse_sys::modes_SPI0 as isize,
     SPI1 = mpsse_sys::modes_SPI1 as isize,
@@ -22,24 +24,42 @@ pub enum Mode {
 }
 
 /// Enumeration of MPSSE byte orders.
+#[derive(Clone, Copy)]
 pub enum Endianess {
     MSB = mpsse_sys::MSB as isize,
     LSB = mpsse_sys::LSB as isize,
 }
 
+/// Mpsse builder.
+pub struct MpsseBuilder<'s> {
+    vid: i32,
+    pid: i32,
+    mode: Mode,
+    freq: u32,
+    endianess: Endianess,
+    interface: FtdiInterface,
+    description: Option<&'s str>,
+    serial: Option<&'s str>,
+    index: i32,
+}
+
 /// Mpsse structure.
 /// Mpsse has an instance of libmpsse
-pub struct Mpsse {
+pub struct Mpsse<'s> {
     context: *mut mpsse_sys::mpsse_context,
+    description: Option<&'s str>,
+    serial: Option<&'s str>,
 }
 
 /// The GPIO pin level
+#[derive(Clone, Copy)]
 pub enum PinLevel {
     Low = 0,
     High,
 }
 
 /// The input/output direction of all pins. For use in BITBANG mode only.
+#[derive(Clone, Copy)]
 pub enum Direction {
     Input = 0,
     Output,
@@ -70,12 +90,14 @@ pub const CLOCK_15_MHZ: u32 = 15_000_000;
 pub const CLOCK_30_MHZ: u32 = 30_000_000;
 pub const CLOCK_60_MHZ: u32 = 60_000_000;
 
+#[derive(Clone, Copy)]
 pub enum I2cAck {
     Ack = mpsse_sys::i2c_ack_ACK as isize,
     Nack = mpsse_sys::i2c_ack_NACK as isize,
 }
 
 /// FTDI Interface
+#[derive(Clone, Copy)]
 pub enum FtdiInterface {
     Any = mpsse_sys::interface_IFACE_ANY as isize,
     A = mpsse_sys::interface_IFACE_A as isize,
@@ -84,9 +106,156 @@ pub enum FtdiInterface {
     D = mpsse_sys::interface_IFACE_D as isize,
 }
 
-impl Mpsse {
+pub struct SupportedDevice {
+    vid: i32,
+    pid: i32,
+    description: &'static str,
+}
+
+pub static SUPPORTED_DEVICES: &'static [SupportedDevice] = &[
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x6010,
+        description: "FT2232 Future Technology Devices International, Ltd",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x6011,
+        description: "FT4232 Future Technology Devices International, Ltd",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x6014,
+        description: "FT232H Future Technology Devices International, Ltd",
+    },
+    /* These devices are based on FT2232 chips, but have not been tested. */
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x8878,
+        description: "Bus Blaster v2 (channel A)",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x8879,
+        description: "Bus Blaster v2 (channel B)",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0xBDC8,
+        description: "Turtelizer JTAG/RS232 Adapter A",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0xCFF8,
+        description: "Amontec JTAGkey",
+    },
+    SupportedDevice {
+        vid: 0x0403,
+        pid: 0x8A98,
+        description: "TIAO Multi Protocol Adapter",
+    },
+    SupportedDevice {
+        vid: 0x15BA,
+        pid: 0x0003,
+        description: "Olimex Ltd. OpenOCD JTAG",
+    },
+    SupportedDevice {
+        vid: 0x15BA,
+        pid: 0x0004,
+        description: "Olimex Ltd. OpenOCD JTAG TINY",
+    },
+];
+
+/// Mpsse Builder.
+/// Open device by VID/PID/index
+impl<'s> MpsseBuilder<'s> {
+    /// Creates a new Mpsse Builder.
+    ///
+    /// `mode` is MPSSE mode, one of enum modes.
+    /// `freq` is Clock frequency to use for the specified mode.
+    /// `endianess` is Specifies how data is clocked in/out (MSB, LSB).
+    pub fn new(mode: Mode, freq: u32, endianess: Endianess) -> Self {
+        MpsseBuilder {
+            vid: 0,
+            pid: 0,
+            mode,
+            freq,
+            endianess,
+            interface: FtdiInterface::A,
+            description: None,
+            serial: None,
+            index: 0,
+        }
+    }
+    /// Set device vendor ID.
+    pub fn set_vid(&mut self, vid: i32) -> &mut Self {
+        self.vid = vid;
+        self
+    }
+    /// Set device product ID.
+    pub fn set_pid(&mut self, pid: i32) -> &mut Self {
+        self.pid = pid;
+        self
+    }
+    /// Set FTDI interface to use (IFACE_A - IFACE_D).
+    pub fn set_interface(&mut self, interface: FtdiInterface) -> &mut Self {
+        self.interface = interface;
+        self
+    }
+    /// Set device product description if needed.
+    pub fn set_description(&mut self, description: &'s str) -> &mut Self {
+        self.description = Some(description);
+        self
+    }
+    /// Set device serial number if needed.
+    pub fn set_serial(&mut self, serial: &'s str) -> &mut Self {
+        self.serial = Some(serial);
+        self
+    }
+    /// Set device index (set to 0 if not needed).
+    pub fn set_index(&mut self, index: i32) -> &mut Self {
+        self.index = index;
+        self
+    }
+    pub fn build(&self) -> io::Result<Mpsse> {
+        let mut mpsse = Mpsse {
+            context: unsafe {
+                mpsse_sys::OpenIndex(
+                    self.vid,
+                    self.pid,
+                    self.mode as u32,
+                    self.freq as i32,
+                    self.endianess as i32,
+                    self.interface as i32,
+                    self.description.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
+                    self.serial.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
+                    self.index,
+                )
+            },
+            description: self.description,
+            serial: self.serial,
+        };
+
+        if mpsse.context.is_null() {
+            Err(Error::new(
+                ErrorKind::NotFound,
+                "MPSSE cannot found supported device",
+            ))
+        } else if unsafe { (*mpsse.context).open } == 0 {
+            Err(Error::new(ErrorKind::NotFound, mpsse.error_string()))
+        } else {
+            Ok(mpsse)
+        }
+    }
+}
+
+impl<'s> Mpsse<'s> {
     /// Creates a new Mpsse.
     /// Opens and initializes the first FTDI device found.
+    ///
+    /// `mode` is MPSSE mode, one of enum modes.
+    /// `freq` is Clock frequency to use for the specified mode.
+    /// `endianess` is Specifies how data is clocked in/out (MSB, LSB).
     ///
     /// # Examples
     ///
@@ -96,105 +265,8 @@ impl Mpsse {
     pub fn new(mode: Mode, freq: u32, endianess: Endianess) -> io::Result<Self> {
         let mut mpsse = Self {
             context: unsafe { mpsse_sys::MPSSE(mode as u32, freq as i32, endianess as i32) },
-        };
-
-        if mpsse.context.is_null() {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                "MPSSE cannot found supported device",
-            ))
-        } else if unsafe { (*mpsse.context).open } == 0 {
-            Err(Error::new(ErrorKind::NotFound, mpsse.error_string()))
-        } else {
-            Ok(mpsse)
-        }
-    }
-
-    /// Creates a new Mpsse.
-    /// Open device by VID/PID
-    ///
-    /// `vid` is Device vendor ID.
-    /// `pid` is Device product ID.
-    /// `mode` is MPSSE mode, one of enum modes.
-    /// `freq` is Clock frequency to use for the specified mode.
-    /// `endianess` is Specifies how data is clocked in/out (MSB, LSB).
-    /// `interface` is FTDI interface to use (`FtdiInterface::A` - `FtdiInterface::D`).
-    /// `description` is Device product description (set to NULL if not needed).
-    /// `serial` is Device serial number (set to NULL if not needed).
-    pub fn open(
-        vid: i32,
-        pid: i32,
-        mode: Mode,
-        freq: u32,
-        endianess: Endianess,
-        interface: FtdiInterface,
-        description: Option<&str>,
-        serial: Option<&str>,
-    ) -> io::Result<Self> {
-        let mut mpsse = Self {
-            context: unsafe {
-                mpsse_sys::Open(
-                    vid,
-                    pid,
-                    mode as u32,
-                    freq as i32,
-                    endianess as i32,
-                    interface as i32,
-                    description.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
-                    serial.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
-                )
-            },
-        };
-
-        if mpsse.context.is_null() {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                "MPSSE cannot found supported device",
-            ))
-        } else if unsafe { (*mpsse.context).open } == 0 {
-            Err(Error::new(ErrorKind::NotFound, mpsse.error_string()))
-        } else {
-            Ok(mpsse)
-        }
-    }
-
-    /// Creates a new Mpsse.
-    /// Open device by VID/PID/index
-    ///
-    /// `vid` is Device vendor ID.
-    /// `pid` is Device product ID.
-    /// `mode` is MPSSE mode, one of enum modes.
-    /// `freq` is Clock frequency to use for the specified mode.
-    /// `endianess` is Specifies how data is clocked in/out (MSB, LSB).
-    /// `interface` is FTDI interface to use (IFACE_A - IFACE_D).
-    /// `description` is Device product description (set to NULL if not needed).
-    /// `serial` is Device serial number (set to NULL if not needed).
-    /// `index` is Device index (set to 0 if not needed).
-    pub fn open_index(
-        vid: i32,
-        pid: i32,
-        mode: Mode,
-        freq: u32,
-        endianess: Endianess,
-        interface: FtdiInterface,
-        description: Option<&str>,
-        serial: Option<&str>,
-        index: i32,
-    ) -> io::Result<Self> {
-        let mut mpsse = Self {
-            context: unsafe {
-                mpsse_sys::OpenIndex(
-                    vid,
-                    pid,
-                    mode as u32,
-                    freq as i32,
-                    endianess as i32,
-                    interface as i32,
-                    description.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
-                    serial.map_or(std::ptr::null(), |s| s.as_ptr() as *const i8),
-                    index,
-                )
-            },
+            description: None,
+            serial: None,
         };
 
         if mpsse.context.is_null() {
@@ -514,7 +586,7 @@ impl Mpsse {
     }
 }
 
-impl Drop for Mpsse {
+impl<'s> Drop for Mpsse<'s> {
     fn drop(&mut self) {
         unsafe { mpsse_sys::Close(self.context) };
     }
