@@ -24,7 +24,7 @@ pub enum Mode {
 }
 
 /// Enumeration of MPSSE byte orders.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Endianess {
     MSB = mpsse_sys::MSB as isize,
     LSB = mpsse_sys::LSB as isize,
@@ -52,14 +52,14 @@ pub struct Mpsse<'s> {
 }
 
 /// The GPIO pin level
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PinLevel {
     Low = 0,
     High,
 }
 
 /// The input/output direction of all pins. For use in BITBANG mode only.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Direction {
     Input = 0,
     Output,
@@ -90,14 +90,14 @@ pub const CLOCK_15_MHZ: u32 = 15_000_000;
 pub const CLOCK_30_MHZ: u32 = 30_000_000;
 pub const CLOCK_60_MHZ: u32 = 60_000_000;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum I2cAck {
     Ack = mpsse_sys::i2c_ack_ACK as isize,
     Nack = mpsse_sys::i2c_ack_NACK as isize,
 }
 
 /// FTDI Interface
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FtdiInterface {
     Any = mpsse_sys::interface_IFACE_ANY as isize,
     A = mpsse_sys::interface_IFACE_A as isize,
@@ -393,16 +393,18 @@ impl<'s> Mpsse<'s> {
     }
 
     /// Causes libmpsse to send ACKs after each read byte in I2C mode.
+    /// Internal operation is set_ack(I2cAck::Ack).
     pub fn send_acks(&mut self) {
         unsafe { mpsse_sys::SendAcks(self.context) };
     }
 
     /// Causes libmpsse to send NACKs after each read byte in I2C mode.
+    /// Internal operation is set_ack(I2cAck::Nack).
     pub fn send_nacks(&mut self) {
         unsafe { mpsse_sys::SendNacks(self.context) };
     }
 
-    ///* Enables or disables flushing of the FTDI chip's RX buffers after each read operation.
+    /// Enables or disables flushing of the FTDI chip's RX buffers after each read operation.
     ///* Flushing is disable by default.
     pub fn flush_after_read(&mut self, enable_flush: bool) {
         let flush: i32 = if enable_flush { 1 } else { 0 };
@@ -493,7 +495,7 @@ impl<'s> Mpsse<'s> {
 
     /// Reads the state of the chip's pins. For use in BITBANG mode only.
     /// Returns a byte with the corresponding pin's bits set to 1 or 0.
-    pub fn reqd_pins(&mut self) -> u8 {
+    pub fn read_pins(&mut self) -> u8 {
         unsafe { mpsse_sys::ReadPins(self.context) as u8 }
     }
 
