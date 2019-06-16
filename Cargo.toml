@@ -1,6 +1,7 @@
 [workspace]
-members = ["mpsse-sys", "mpsse"]
+members = ["mpsse-sys", "mpsse", "mpsse-hal"]
 
 [replace]
 "mpsse-sys:0.1.0" = { path = "mpsse-sys" }
+"mpsse:0.1.0" = { path = "mpsse" }
 
