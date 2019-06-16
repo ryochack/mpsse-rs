@@ -114,16 +114,6 @@ where
     Ok(())
 }
 
-// work around for the problem that SDL keepps LOW after read operation
-fn dummy<T>(i2c: &mut T)
-where
-    T: hal::blocking::i2c::WriteRead,
-{
-    let cmd = CommandCode::new(Register::Id).command_bit().build();
-    let mut id = [0x00u8; 1];
-    let _ = i2c.write_read(SLAVE_ADDR, &(cmd.to_le_bytes()), &mut id);
-}
-
 fn read_id<T, E>(i2c: &mut T) -> Result<(), E>
 where
     T: hal::blocking::i2c::WriteRead<Error = E>,
@@ -133,7 +123,6 @@ where
     println!("command = {:x}", cmd);
     i2c.write_read(SLAVE_ADDR, &(cmd.to_le_bytes()), &mut id)?;
     println!("id = {:x}", id[0]);
-    dummy(i2c);
     Ok(())
 }
 
@@ -223,7 +212,6 @@ where
     println!("command = {:x}", cmd);
     i2c.write_read(SLAVE_ADDR, &(cmd.to_le_bytes()), &mut data)?;
     println!("data = {:x?}", data);
-    dummy(i2c);
 
     Ok((
         data[0] as u16 | ((data[1] as u16) << 8),

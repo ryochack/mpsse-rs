@@ -42,6 +42,14 @@ impl<'s> I2c<'s> {
     pub fn set_clock(&mut self, freq: u32) -> Result<()> {
         self.ctx.set_clock(freq)
     }
+
+    #[inline]
+    /// Send NACK from Master
+    fn send_nack(&mut self) {
+        self.ctx.send_nacks();
+        let mut _dummy: [u8; 1] = [0];
+        let _ = self.ctx.read(&mut _dummy);
+    }
 }
 
 impl<'s> Read for I2c<'s> {
@@ -77,6 +85,7 @@ impl<'s> Read for I2c<'s> {
         }
 
         self.ctx.read(buffer)?;
+        self.send_nack();
         self.ctx.stop()?;
 
         Ok(())
@@ -170,6 +179,7 @@ impl<'s> WriteRead for I2c<'s> {
             return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "NACK"));
         }
         self.ctx.read(buffer)?;
+        self.send_nack();
         self.ctx.stop()?;
 
         Ok(())

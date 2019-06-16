@@ -1,7 +1,6 @@
 use mpsse;
 use std::io;
 use std::io::{Error, ErrorKind};
-use std::{thread, time};
 
 struct SlaveAddr {
     addr: u8,
@@ -142,28 +141,6 @@ fn power(i2c: &mut mpsse::Mpsse, on: bool) -> io::Result<()> {
     Ok(())
 }
 
-// work around for the problem that SDL keepps LOW after read operation
-fn dummy(i2c: &mut mpsse::Mpsse) -> io::Result<()> {
-    let addr = SlaveAddr::new(0x39);
-    let cmd = CommandCode::new(Register::Id).command_bit().build();
-    i2c.start()?;
-    i2c.send_acks();
-    let mut wdata: [u8; 2] = [addr.w(), cmd];
-    i2c.write(&mut wdata)?;
-    if i2c.get_ack() == mpsse::I2cAck::Nack {
-        dbg!("faild to get ACK");
-    }
-    i2c.start()?;
-    i2c.write(&mut (addr.r().to_le_bytes()))?;
-    if i2c.get_ack() == mpsse::I2cAck::Nack {
-        // return NACK
-    }
-    let mut id = [0x00u8; 1];
-    i2c.read(&mut id)?;
-    i2c.stop()?;
-    Ok(())
-}
-
 fn read_id(i2c: &mut mpsse::Mpsse) -> io::Result<()> {
     let addr = SlaveAddr::new(0x39);
     let cmd = CommandCode::new(Register::Id).command_bit().build();
@@ -188,11 +165,15 @@ fn read_id(i2c: &mut mpsse::Mpsse) -> io::Result<()> {
 
     let mut id = [0x00u8; 1];
     i2c.read(&mut id)?;
+
+    // send NACK
+    i2c.send_nacks();
+    let mut _dummy: [u8; 1] = [0];
+    let _ = i2c.read(&mut _dummy);
+
     i2c.stop()?;
 
     println!("id = {:x}", id[0]);
-
-    dummy(i2c);
 
     Ok(())
 }
@@ -241,7 +222,7 @@ fn caluculate_lux(broadband: u16, ir: u16, gain: Gain, integ: IntegTime) -> u32 
     };
     let ratio = (ratio1 + 1) >> 1;
 
-    let (b, m) = if (ratio >= 0) && (ratio <= K1C) {
+    let (b, m) = if ratio <= K1C {
         (B1C, M1C)
     } else if ratio <= K2C {
         (B2C, M2C)
@@ -298,11 +279,15 @@ fn read_data(i2c: &mut mpsse::Mpsse) -> io::Result<((u16, u16))> {
 
     let mut data = [0x00u8; 4];
     i2c.read(&mut data)?;
+
+    // send NACK
+    i2c.send_nacks();
+    let mut _dummy: [u8; 1] = [0];
+    let _ = i2c.read(&mut _dummy);
+
     i2c.stop()?;
 
     println!("data = {:x?}", data);
-
-    dummy(i2c);
 
     Ok(
         (
