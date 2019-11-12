@@ -260,7 +260,7 @@ impl<'s> Mpsse<'s> {
     /// # Examples
     ///
     /// ```no_run
-    /// let mut mpsse = mpsse::Mpsse::new(mpsse::Mode::GPIO, 0, mpsse::Endianess::MSB)?;
+    /// let mut mpsse = mpsse::Mpsse::new(mpsse::Mode::GPIO, 0, mpsse::Endianess::MSB);
     /// ```
     pub fn new(mode: Mode, freq: u32, endianess: Endianess) -> io::Result<Self> {
         let mut mpsse = Self {
