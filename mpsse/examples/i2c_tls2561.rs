@@ -252,7 +252,7 @@ fn caluculate_lux(broadband: u16, ir: u16, gain: Gain, integ: IntegTime) -> u32 
     lux
 }
 
-fn read_data(i2c: &mut mpsse::Mpsse) -> io::Result<((u16, u16))> {
+fn read_data(i2c: &mut mpsse::Mpsse) -> io::Result<(u16, u16)> {
     let addr = SlaveAddr::new(0x39);
     let cmd = CommandCode::new(Register::Data0Low)
         .command_bit()
